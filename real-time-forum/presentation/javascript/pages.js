@@ -1,19 +1,17 @@
 import { Dateformat, debounce } from "./utils.js"
 import { Listener } from "./service.js"
-import { Checkstuts, username } from "./check.js";
-import { showError } from "./errore.js";
+import { username } from "./check.js";
+
 
 let socket;
 let Users = []
 
 export const Homepage = (data) => {
-    console.log("==== data ", data);
-    // let title = document.querySelector("title")
-    // let name = title.getAttribute("class")
+  
     let name = username
     document.body.innerHTML = `
     <header class="header">
-        <div class="logo">FORUM</div>
+        <div class="logo" >FORUM</div>
         <button id="logout">logout</button>
     </header>
     `
@@ -108,7 +106,7 @@ export const Homepage = (data) => {
                     </label>
                 </div>
             </div>
-                <p id="error-message"></p>
+                <p id="error-message-creatpost"></p>
             <button type="submit" class="submit-btn">Submit Post</button>
         </form>
     `
@@ -133,9 +131,10 @@ export const Homepage = (data) => {
 
     let contacts = document.createElement("aside");
     contacts.setAttribute("class", "contacts");
+    contacts.style.paddingTop = "0"
     contacts.innerHTML = `
      <div style=" margin-bottom: 1rem;">
-            <span class="material-icons" id="cancel">visibility_off</span>
+     <span class="material-icons" id="cancel"></span>
             <h3>Contacts</h3>
      </div>
     `;
@@ -143,49 +142,110 @@ export const Homepage = (data) => {
     let contactList = document.createElement("div");
     contactList.setAttribute("id", "contact-list");
 
+   
+    contactList.style.height = `${window.innerHeight / 4}px`;
+    contactList.style.overflowY = "auto";
+    contactList.style.border = "3px solid rgb(226, 226, 226)";
+    contactList.style.padding = "15px"
+    contactList.style.borderRadius = "20px"
 
     contacts.append(contactList);
     container.append(contacts);
     document.body.append(container);
 
-    // Initialize WebSocket
-    // const username = document.querySelector("title").getAttribute("class");
-    socket = new WebSocket(`/ws?username=${username}`)
+   
+    socket = new WebSocket(`/ws`)
 
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        console.log(data);
 
-        // Check if the message is about online users
-        if (data.type === "online-users") {
-            Users = data.users; // Array of users with their online status
-            console.log("==== users ", Users);
+        if (data.type === "users") {
 
-            
-            updateUserList()
+            data.users.forEach(user => {
+               
+                if (user.username === username) {
+                    Users = user.sort
+                    updateUserList(user.allUsers)
+                }
+            })
+           
+           
+        } else if (data.type === "online-users") {
 
+            updatesOnline(data.users)
+
+        } else if (data.content === "is-typing") {
+            displayTyping(data)
+        } else if (data.content === "no-typing") {
+            displayTyping(data)
         } else {
-            // Handle other message types (e.g., chat messages)
+            
             const message = data;
+
+        if (message.receiver === username) {
+            const div = document.createElement("div")
+            div.className = "pop"
+
+            div.innerHTML = `
+            <h3> ${message.receiver} </h3>
+              <p> you have a new message from ${message.sender} </p>
+            `
+            document.body.append(div)
+
+            setTimeout(()=> {
+                document.querySelector(".pop").remove()
+            }, 3000)
+        }
+
+        if (message.receiver === username) {
+            contactOrder(message.sender)
+        } else if (message.sender === username) {
+            contactOrder(message.receiver)
+        }
+
             
             displayMessage(message.sender, message.content, message.Time, message.sender === username ? message.receiver : message.sender, 1)
         }
     }
 }
+let id 
+function displayTyping(data){
+    const sender = data.sender.replace(/\s+/g, "-")
+    const typingMessage = document.querySelector(`#typing-${sender}`)
+    const chatTyping = document.querySelector(`#chat-typing-${sender}`)
 
+    if (data.receiver === username) {
+        if (data.content === "is-typing"){
+            clearTimeout(id)
+            typingMessage.innerHTML = ` ${sender}  <img src="/static/typing.gif" alt="typing..." class="typing-gif"/>`
+            chatTyping.innerHTML   = ` ${sender}  <img src="/static/typing.gif" alt="typing..." class="typing-gif"/>`
+            id = setTimeout(() => {
+                typingMessage.innerHTML = ''
+                chatTyping.innerHTML   = ''
+            }, 1000)
+        } else if (data.content === "no-typing") {
+            // Clear GIF
+            typingMessage.innerHTML = ''
+            chatTyping.innerHTML   = ''
+        }
+    }
+}
 
-export function updateUserList() {
-    const contactList = document.getElementById("contact-list");
-    contactList.innerHTML = ""; // Clear the existing list
-        console.log("==== users ", Users);
+function contactOrder(recSen) {
+    const contactList = document.getElementById("contact-list")
+    const contactRecSen = document.querySelector(`#contact-${recSen}`)
+    
 
-    Users.forEach((user) => {
-        let contact = document.createElement("div");
-        contact.setAttribute("class", "contact");
-        contact.textContent = user.username;
+    contactList.prepend(contactRecSen)
 
-        // Add green circle for online users
-        if (user.online) {
+}
+
+function updatesOnline(users) {
+
+    users.forEach(user => {
+        const contact = document.getElementById(`contact-${user}`)
+
+       
             let onlineIndicator = document.createElement("span");
             onlineIndicator.setAttribute("class", "online-indicator");
             onlineIndicator.style.backgroundColor = "green";
@@ -195,15 +255,38 @@ export function updateUserList() {
             onlineIndicator.style.display = "inline-block";
             onlineIndicator.style.marginLeft = "10px";
             contact.append(onlineIndicator);
-        }
+        
+    })
+
+  
+}
+
+
+
+export function updateUserList(allUsers) {
+    const contactList = document.getElementById("contact-list")
+    contactList.innerHTML = ""
+        console.log("====>> users ", Users)
+
+        allUsers.sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+
+    Users?.forEach((user) => {
+        let contact = document.createElement("div")
+        let typing = document.createElement("div")
+        contact.setAttribute("class", "contact")
+        contact.setAttribute("id", `contact-${user}`)
+        contact.textContent = user
+        
+        typing.setAttribute("id", `typing-${user}`)
+        contact.append(typing)
 
         contact.addEventListener("click", async () => {
-            console.log(`Clicked on user: ${user.username}`);
+            console.log(`Clicked on user: ${user}`)
 
             // openchat(receiver)
-            openChat(user.username);
+            openChat(user)
 
-           const chatData = await getChats(username, user.username, 0)
+           const chatData = await getChats(username, user, 0)
            
            if (chatData) {
             chatData.forEach(el => {
@@ -211,11 +294,41 @@ export function updateUserList() {
             })
            }
         })
+        contactList.append(contact)
+    })
 
+    allUsers.forEach((u) => {
+        
+            if ( !(Users?.includes(u)) ) {
+                let contact = document.createElement("div")
+                let typing = document.createElement("div")
+                contact.setAttribute("class", "contact")
+                contact.setAttribute("id", `contact-${u}`)
+                contact.textContent = u
 
+                typing.setAttribute("id", `typing-${u}`)
+                contact.append(typing)
+        
+                contact.addEventListener("click", async () => {
+                    console.log(`Clicked on user: ${u}`)
+        
+                    // openchat(receiver)
+                    openChat(u)
+        
+                   const chatData = await getChats(username, u, 0)
+                   
+                   if (chatData) {
+                    chatData.forEach(el => {
+                        displayMessage(el.Sender, el.Text, el.Time, el.Sender === username ? el.Receiver : el.Sender)
+                    })
+                   }
+                })
 
-        contactList.append(contact);
-    });
+                contactList.append(contact)
+            } 
+        })
+    
+
 }
 
 
@@ -260,15 +373,17 @@ function openChat(receiver) {
     const chatWindow = document.createElement("div");
     chatWindow.setAttribute("id", `chat-window-${sanitizedReceiver}`);
     chatWindow.setAttribute("class", "chat-window");
+    chatWindow.style.height = `${window.innerHeight / 2}px`;
     chatWindow.innerHTML = `
-       <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h3>Chat with ${receiver}</h3>
-            <button id="close-chat-${sanitizedReceiver}" style="background: none; border: none; cursor: pointer; font-size: 16px;">X</button>
+        <div>
+            <h3>Chat with ${receiver.trim()}</h3>
+            <button id="close-chat-${sanitizedReceiver}">X</button>
         </div>
-        <div class="chat-messages" id="chat-messages-${sanitizedReceiver}" style="height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;"></div>
-        <div style="display: flex; align-items: center; margin-top: 10px;">
-            <textarea id="chat-input-${sanitizedReceiver}" placeholder="Type a message..." style="flex: 1; height: 50px; margin-right: 10px;"></textarea>
-            <button id="send-message-${sanitizedReceiver}" style="background: none; border: none; cursor: pointer;">
+        <div class="chat-messages" id="chat-messages-${sanitizedReceiver}"></div>
+         <div id="chat-typing-${sanitizedReceiver}" style="background: #f8f9fa;     padding-left: 20px;" ></div>
+        <div class="chat-input-container">
+            <input class="chat-input" type="text" id="chat-input-${sanitizedReceiver}" placeholder="Type a message..."></input>
+            <button id="send-message-${sanitizedReceiver}">
                 <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" fill="#000000">
                     <path d="M0 0h24v24H0z" fill="none"/>
                     <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
@@ -277,42 +392,30 @@ function openChat(receiver) {
         </div>
     `;
 
-    // Apply temporary inline styles for visibility
-    chatWindow.style.border = "1px solid black";
-    chatWindow.style.backgroundColor = "white";
-    chatWindow.style.position = "fixed";
-    chatWindow.style.bottom = "10px";
-    chatWindow.style.right = "10px";
-    chatWindow.style.width = "300px";
-    chatWindow.style.height = "400px";
-    chatWindow.style.zIndex = "1000";
-    chatWindow.style.overflow = "hidden";
+    // Append the chat window to the bottom of the contacts
+    const contacts = document.querySelector(".contacts");
+    contacts.append(chatWindow);
 
-    
-    document.body.append(chatWindow);
+    // Add event listener to the close button
+    const closeButton = document.querySelector(`#close-chat-${sanitizedReceiver}`);
+    closeButton.addEventListener("click", () => {
+        chatWindow.remove();
+        console.log(`Chat window with ${receiver} closed.`);
+    });
 
-     // Add event listener to the close button
-     const closeButton = document.querySelector(`#close-chat-${sanitizedReceiver}`);
-     closeButton.addEventListener("click", () => {
-         chatWindow.remove();
-         console.log(`Chat window with ${receiver} closed.`);
-     });
-
-
-    let chat = document.getElementById(`chat-messages-${sanitizedReceiver}`)
-    chat.style.display = "flex"
-    chat.style.flexDirection = "column-reverse"
+    let chat = document.getElementById(`chat-messages-${sanitizedReceiver}`);
+    chat.style.display = "flex";
+    chat.style.flexDirection = "column-reverse";
 
     chat.addEventListener("scrollend", debounce(async () => {
-
-        const chatData = await getChats(username, receiver)
+        const chatData = await getChats(username, receiver);
 
         if (chatData) {
             chatData.forEach(el => {
-                displayMessage(el.Sender, el.Text, el.Time, el.Sender === username ? el.Receiver : el.Sender)
-            })
-           }
-    }, 500))
+                displayMessage(el.Sender, el.Text, el.Time, el.Sender === username ? el.Receiver : el.Sender);
+            });
+        }
+    }, 500));
 
     console.log("Chat window appended to the DOM.");
 
@@ -332,21 +435,40 @@ function openChat(receiver) {
 
         const message = input.value;
         if (message.trim()) {
-            // Use the username variable to send the message
-            socket.send(JSON.stringify({ sender: username, receiver: receiver, content: message }))
-            // displayMessage({ sender: username, content: message }, receiver);
-            input.value = ""
+            
+            socket.send(JSON.stringify({ sender: username, receiver: receiver, content: message.trim().replace(/\s+/g, ' ') }));
+            input.value = "";
         }
+
+    });
+
+    const input = document.querySelector(`#chat-input-${sanitizedReceiver}`)
+    let id 
+
+    input.addEventListener('keydown', ()  => {
+        clearTimeout(id)
+        socket.send(JSON.stringify({ sender: username, receiver: receiver, content: "is-typing"}));
+       id = setTimeout(() => {
+            socket.send(JSON.stringify({ sender: username, receiver: receiver, content: "no-typing"}));
+        }, 2000)
     })
+
 }
+
 function displayMessage(sender, content, time, receiver, i = 0) {
-    // const username = document.querySelector("title").getAttribute("class"); // Get the current user's username
-    const sanitizedReceiver = receiver.replace(/\s+/g, "-"); // Sanitize receiver username
-    const chatMessages = document.querySelector(`#chat-messages-${sanitizedReceiver}`);
+
+    console.log(content);
+    
+    const sanitizedReceiver = receiver.replace(/\s+/g, "-")
+    const chatMessages = document.querySelector(`#chat-messages-${sanitizedReceiver}`)
 
     if (chatMessages) {
         const msg = document.createElement("div");
         const span = document.createElement("span");
+        const p = document.createElement("p");
+
+        msg.className = "format-msg"
+
 
         msg.style.padding = "10px";
         msg.style.margin = "8px 0";
@@ -354,40 +476,40 @@ function displayMessage(sender, content, time, receiver, i = 0) {
         msg.style.fontFamily = "Arial, sans-serif";
         msg.style.fontSize = "14px";
         msg.style.position = "relative";
-        msg.style.maxWidth = "70%";  // Set a max width to prevent messages from getting too wide.
+        msg.style.maxWidth = "70%";  
 
-        // Styling for the timestamp
-        span.style.color = "#888";
+        
+
+        
+        // span.style.color = "#888";
         span.style.fontSize = "12px";
-        span.style.position = "absolute";
+        // span.style.position = "absolute";
         span.style.bottom = "6px";
-        span.style.right = "10px"; // Position the timestamp
+        span.style.right = "10px"; 
+        
 
-        // Set the message content
-        msg.textContent = `${sender}: ${content}`
-        // span.textContent = `${time}`;
+       
+        p.textContent = `${sender}: ${content}`
 
-        // Check if the message is from the current user (sender)
+        span.textContent = `${time}`
+
         if (sender === username) {
-            // Style for sender's message
-            msg.style.backgroundColor = "#2a91ffd0";  // Green background for sender
-            msg.style.color = "#fff";  // White text for sender
-            msg.style.alignSelf = "flex-end";  // Align sender's message to the right
+            
+            msg.style.backgroundColor = "#2a91ffd0";  
+            msg.style.color = "#fff";  
+            msg.style.alignSelf = "flex-end";  
 
-            msg.append(span)
+            msg.append(p, span)
             i === 0 ? chatMessages.append(msg) : chatMessages.prepend(msg) 
         } else {
-            // Style for receiver's message
-            msg.style.backgroundColor = "#f1f1f1";  // Light gray background for receiver
-            msg.style.color = "#000";  // Black text for receiver
-            msg.style.alignSelf = "flex-start";  // Align receiver's message to the left
+           
+            msg.style.backgroundColor = "#f1f1f1";  
+            msg.style.color = "#000";  
+            msg.style.alignSelf = "flex-start"; 
 
-            msg.append(span);
+            msg.append(p, span);
             i === 0 ? chatMessages.append(msg) : chatMessages.prepend(msg) 
         }
-
-        // Ensure chat container scrolls to the bottom to show the latest message
-        // chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 }
 
@@ -417,7 +539,7 @@ export const MoreData = (data) => {
                 post_header.append(poster)
                 post_header.append(time)
                 let title = document.createElement("h4")
-                title.textContent = element.Title + "   ====> " + element.ID
+                title.textContent = element.Title
                 let p = document.createElement("p")
                 p.textContent = element.Content
                 let cat = document.createElement("i")
@@ -466,7 +588,6 @@ export const MoreData = (data) => {
                              <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                          </svg>
                     </button>
-                    <p id="error-message"></p>
                     </div>`
             }
         })

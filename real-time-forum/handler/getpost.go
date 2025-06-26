@@ -14,7 +14,6 @@ var (
 )
 
 func Getpost(w http.ResponseWriter, r *http.Request) {
-	
 	var err error
 	_, err = servisse.IsHaveToken(r)
 	if err != nil {
@@ -33,15 +32,15 @@ func Getpost(w http.ResponseWriter, r *http.Request) {
 	if lastdata == "true" {
 		str, err = db.Getlastid("")
 		if err != nil {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"error": "400", "status":false, "finish": true ,"tocken":false}`))
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"error": "404", "status":false,"tocken":false}`))
 			return
 		}
 	}
 
 	if str == 0 {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"error": "400", "status":false, "finish": true ,"tocken":false}`))
+		w.WriteHeader(http.StatusNotFound)
+		w.Write([]byte(`{"error": "404", "status":false, "finish": true ,"tocken":false}`))
 		return
 	}
 

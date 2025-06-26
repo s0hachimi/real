@@ -13,14 +13,16 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins
+		origin := r.Header.Get("Origin")
+		return origin == "http://localhost:8080"
 	},
 }
 
 var (
-	clients      = make(map[*websocket.Conn]string) // Map of WebSocket connections to usernames
-	clientsMutex sync.RWMutex                       // Mutex to synchronize access to the clients map
-	broadcast    = make(chan Message)               // Channel for broadcasting messages
+	clients      = make(map[*websocket.Conn]string)
+	clientsMutex sync.RWMutex
+	broadcast    = make(chan Message)
+	typing       = make(chan Message)
 )
 
 type Message struct {
@@ -30,64 +32,49 @@ type Message struct {
 	Time     string
 }
 
-var conn *websocket.Conn
-
 func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
-	var err error
-	conn, err = upgrader.Upgrade(w, r, nil)
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		fmt.Println("WebSocket upgrade error:", err)
 		return
 	}
-
-	// defer func() {
-	// 	fmt.Println("close hhhhhhhhhhhhhhh")
-	// }()
-
 	defer func() {
-		fmt.Println("1", clients)
-		// Safely remove the client from the map when the connection is closed
 		clientsMutex.Lock()
 		delete(clients, conn)
 		clientsMutex.Unlock()
 
-		fmt.Println("2", clients)
-
-
-		// Broadcast the updated list of online users
+		BroadcastUsers()
 		BroadcastOnlineUsers()
 		conn.Close()
-
-		fmt.Println("logout hhh")
 	}()
 
-	username := r.URL.Query().Get("username")
-	if username == "" {
-		fmt.Println("No username provided in WebSocket connection")
+	cookie, err := r.Cookie("SessionToken")
+
+	if err != nil || cookie.Value == "" {
+		fmt.Println("Error sessionToken ", err)
 		return
 	}
 
-	fmt.Println("username: ", username)
+	username := db.GetUsernameByToken(cookie.Value)
 
-	// Safely add the client to the map
+	if username == "" {
+		fmt.Println("this nigga does'nt exsist : ", username)
+		return
+	}
+
 	clientsMutex.Lock()
 	for existingConn, existingUsername := range clients {
 		if existingUsername == username {
-			// Close the previous connection for the same username
 			fmt.Println("Closing previous connection for username:", username)
-			delete(clients, existingConn)
 			existingConn.Close()
+			delete(clients, existingConn)
 			break
 		}
 	}
-
 	clients[conn] = username
 	clientsMutex.Unlock()
-
-	// Broadcast the updated list of online users
+	BroadcastUsers()
 	BroadcastOnlineUsers()
-
-	// Read messages !!!!!!!!!
 
 	for {
 
@@ -98,16 +85,20 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		time := time.Now().Format("2006-01-02 15:04:05")
-		msg.Time = time
+		if msg.Content == "is-typing" || msg.Content == "no-typing" {
+			typing <- msg
+		} else {
+			time := time.Now().Format("2006-01-02 15:04:05")
+			msg.Time = time
 
-		err = db.InsertMessages(msg.Sender, msg.Receiver, msg.Content, msg.Time)
-		if err != nil {
-			fmt.Println("insert massages error:", err)
-			return
+			err = db.InsertMessages(msg.Sender, msg.Receiver, msg.Content, msg.Time)
+			if err != nil {
+				fmt.Println("insert massages error:", err)
+				return
+			}
+			broadcast <- msg
 		}
 
-		broadcast <- msg
 	}
 }
 
@@ -115,15 +106,15 @@ func HandleMessages() {
 	for {
 		msg := <-broadcast
 
-		// Safely iterate over the clients map
 		clientsMutex.RLock()
 		for client, username := range clients {
-			// Send the message to both the sender and the receiver
 			if username == msg.Receiver || username == msg.Sender {
 				err := client.WriteJSON(msg)
 				if err != nil {
 					fmt.Println("WebSocket write error:", err)
+
 					client.Close()
+
 					clientsMutex.Lock()
 					delete(clients, client)
 					clientsMutex.Unlock()
@@ -134,46 +125,43 @@ func HandleMessages() {
 	}
 }
 
-
-
-func BroadcastOnlineUsers() {
+func BroadcastUsers() {
 	clientsMutex.RLock()
 	defer clientsMutex.RUnlock()
 
-	// Fetch all users from the database
 	allUsers, err := db.GetAllUsers()
 	if err != nil {
 		fmt.Println("Error fetching all users:", err)
 		return
 	}
-	// fmt.Println("==> all users :", allUsers)
 
-	// Build the list of users with their online status
+	sortUsers, err := db.GetLastMessage(allUsers)
+	if err != nil {
+		fmt.Println("Error fetching all users:", err)
+		return
+	}
+
 	users := []map[string]any{}
-	for _, user := range allUsers {
+	for _, user := range sortUsers {
 		online := false
 		for _, onlineUser := range clients {
-			if onlineUser == user {
-
-				fmt.Println(onlineUser)
-
+			if onlineUser == user.User {
 				online = true
 				break
 			}
 		}
-
 		users = append(users, map[string]any{
-			"username": user,
+			"username": user.User,
+			"sort":     user.UserMsg,
 			"online":   online,
+			"allUsers": allUsers,
 		})
 	}
 
-	// Broadcast the list of users with their online status
 	message := map[string]any{
-		"type":  "online-users",
+		"type":  "users",
 		"users": users,
 	}
-	// fmt.Println("==> online users :", message)
 
 	for client := range clients {
 		err := client.WriteJSON(message)
@@ -184,5 +172,56 @@ func BroadcastOnlineUsers() {
 			delete(clients, client)
 			clientsMutex.Unlock()
 		}
+	}
+}
+
+func BroadcastOnlineUsers() {
+
+	clientsMutex.RLock()
+	defer clientsMutex.RUnlock()
+
+	var online []string
+
+	for _, client := range clients {
+		online = append(online, client)
+	}
+
+	message := map[string]any{
+		"type":  "online-users",
+		"users": online,
+	}
+
+	for client := range clients {
+		err := client.WriteJSON(message)
+		if err != nil {
+			fmt.Println("WebSocket write error:", err)
+			client.Close()
+			clientsMutex.Lock()
+			delete(clients, client)
+			clientsMutex.Unlock()
+		}
+	}
+}
+
+func Typing() {
+	for {
+		msg := <-typing
+
+		clientsMutex.RLock()
+		for client, username := range clients {
+			if username == msg.Receiver || username == msg.Sender {
+				err := client.WriteJSON(msg)
+				if err != nil {
+					fmt.Println(err)
+
+					client.Close()
+
+					clientsMutex.Lock()
+					delete(clients, client)
+					clientsMutex.Unlock()
+				}
+			}
+		}
+		clientsMutex.RUnlock()
 	}
 }

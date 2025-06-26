@@ -31,6 +31,7 @@ func Post(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(`{"error": "400", "status":false ,"tocken":true}`))
 			return
 		}
+		
 		tocken, _ := r.Cookie("SessionToken")
 		user_id := db.GetId("sessionToken", tocken.Value)
 		errore := db.InsertPostes(user_id, title, content, categories)

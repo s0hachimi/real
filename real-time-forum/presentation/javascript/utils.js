@@ -3,6 +3,7 @@ import { likeHandel } from "./service.js"
 
 export const pagenation = debounce(() => {
     if ((document.body.offsetHeight - (window.innerHeight + window.scrollY)) < 500) {
+        
         fetch('/getpost')
             .then(response => response.json())
             .then(data => {

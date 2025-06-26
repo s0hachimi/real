@@ -1,10 +1,10 @@
-import { Homepage, MoreData, updateUserList } from "./pages.js"
+import { Homepage, MoreData } from "./pages.js"
 import { Checkstuts, validateCategories } from "./check.js"
 import { showError } from "./errore.js"
 import { pagenation, Dateformat, debounce } from "./utils.js"
 import { HomeHandeler } from "./Homehandler.js"
 
-export function Listener(){
+export function Listener() {
     let sendcomment = document.querySelectorAll(".send-button")
     sendcomment.forEach((el) => {
         el.addEventListener("click", send_comment)
@@ -19,8 +19,8 @@ export function HomeListener(data) {
     Homepage(data)
     let CreatPostBtn = document.querySelector(".create-post")
     CreatPostBtn.addEventListener("click", handelpost)
-    let cancel = document.querySelector("#cancel")
-    cancel.addEventListener("click", handelcontact)
+    // let cancel = document.querySelector("#cancel")
+    // cancel.addEventListener("click", handelcontact)
 
     let sendcomment = document.querySelectorAll(".send-button")
     sendcomment.forEach((el) => {
@@ -180,6 +180,7 @@ export const handelpost = (event) => {
         creat_btn.style.display = "inline"
         window.addEventListener("scroll", pagenation)
     })
+
     let form = document.forms.creatpost
     form.addEventListener("submit", submitpost)
 
@@ -188,14 +189,14 @@ export const handelpost = (event) => {
 
 
 export const submitpost = (ev) => {/////////////////formulaire dyal create post
-    ev.preventDefault();
+    ev.preventDefault()
     let title = ev.target.title.value
     let post = ev.target.content.value
     if (title === "" || post === "") {
-        showError("Fill in all the fields")
+        showError("Fill in all the fields", "error-message-creatpost")
         return
     }
-    const formData = new FormData(ev.target);
+    const formData = new FormData(ev.target)
     fetch('/pubpost', {
         method: 'POST',
         body: formData
@@ -206,12 +207,11 @@ export const submitpost = (ev) => {/////////////////formulaire dyal create post
                 HomeHandeler()
                 return
             } else {
-                console.log(data.tocken)
                 if (data.tocken == false) {
                     Checkstuts()
                     return
                 } else {
-                    showError(data.error)
+                    showError("Fill in all the fields", "error-message-creatpost")
                     return
                 }
             }
@@ -219,22 +219,22 @@ export const submitpost = (ev) => {/////////////////formulaire dyal create post
         .catch(error => {
             console.log('Error:', error);
 
-        });
+        })
 }
 
 
 
-const handelcontact = () => {///cancel contact
-    let cancel = document.querySelector("#cancel")
-    if (cancel.textContent == "visibility_off") {
-        let contact = document.querySelector("#contact")
-        contact.style.display = "none"
-        cancel.textContent = "visibility"
-    } else {
-        let contact = document.querySelector("#contact")
-        contact.style.display = "flex"
-        cancel.textContent = "visibility_off"
-    }
+const handelcontact = () => { ///cancel contact
+    // let cancel = document.querySelector("#cancel")
+    // if (cancel.textContent == "visibility_off") {
+    //     let contact = document.querySelector("#contact")
+    //     contact.style.display = "none"
+    //     cancel.textContent = "visibility"
+    // } else {
+    //     // let contact = document.querySelector("#contact")
+    //     // contact.style.display = "flex"
+    //     // cancel.textContent = "visibility_off"
+    // }
 
 }
 
@@ -260,11 +260,9 @@ const send_comment = (event) => {/////send comment
     }
 
     if (content === "") {
-        showError("Fill in all the fields");
-        return;
+        return
     }
 
-    console.log("da6l hna");
     fetch('/sendcomment', {
         method: 'POST',
         body: JSON.stringify({ content: content, post_id: post_id }),
@@ -287,8 +285,8 @@ const send_comment = (event) => {/////send comment
                         el.remove();
                     });
 
-                    let simulatedEvent = new Event('click', { bubbles: true });
-                    commentDiv.dispatchEvent(simulatedEvent);
+                    // let simulatedEvent = new Event('click', { bubbles: true });
+                    // commentDiv.dispatchEvent(simulatedEvent);
 
                     // CommentEvent(simulatedEvent); // Jarrab t7aydo w chouf wach kaykhddm
                 }
@@ -423,7 +421,6 @@ function logoutHandel() {
             console.log('Error:', error);
         });
 
-        updateUserList()
 }
 
 

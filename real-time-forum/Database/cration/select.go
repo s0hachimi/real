@@ -59,7 +59,6 @@ func GetUsernameByToken(tocken string) string {
 	return username
 }
 
-
 func GetId(input string, tocken string) int {
 	var id int
 	quire := "SELECT id FROM users WHERE " + input + " = ?"
@@ -107,7 +106,6 @@ func GetPostes(str int, end int, userid int) ([]utils.Postes, error) {
 
 	return postes, nil
 }
-
 
 func GetCategories(category string, start int, userid int) ([]utils.Postes, int, error) {
 	end := 0
@@ -183,8 +181,19 @@ func SelectComments(postid int, userid int) ([]utils.CommentPost, error) {
 }
 
 func SelectPostid(postid int) error {
-	query := "SELECT id FROM postes WHERE id = $1"
-	_, err := DB.Exec(query, postid)
+	id := 0
+	query := "SELECT id FROM postes WHERE id = ?"
+	err := DB.QueryRow(query, postid).Scan(&id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func SelectCommentid(commentid int) error {
+	id := 0
+	query := "SELECT id FROM comments WHERE id = ?"
+	err := DB.QueryRow(query, commentid).Scan(&id)
 	if err != nil {
 		return err
 	}
@@ -285,4 +294,54 @@ func SelecChats(sender string, receiver string, num int) ([]utils.Msg, error) {
 	}
 
 	return msgs, nil
+}
+
+type UserLastMessage struct {
+	User    string
+	UserMsg []string
+}
+
+func GetLastMessage(allUsers []string) ([]UserLastMessage, error) {
+	userLastContacts := make(map[string][]string)
+
+	query := "SELECT sender, receiver FROM messages ORDER BY id DESC"
+	rows, err := DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var sender, receiver string
+		if err := rows.Scan(&sender, &receiver); err != nil {
+			return nil, err
+		}
+
+		if !contains(userLastContacts[sender], receiver) {
+			userLastContacts[sender] = append(userLastContacts[sender], receiver)
+		}
+
+		if !contains(userLastContacts[receiver], sender) {
+			userLastContacts[receiver] = append(userLastContacts[receiver], sender)
+		}
+	}
+
+	var result []UserLastMessage
+	for _, user := range allUsers {
+		result = append(result, UserLastMessage{
+			User:    user,
+			UserMsg: userLastContacts[user],
+		})
+	}
+
+	return result, nil
+}
+
+func contains(list []string, user string) bool {
+	for _, u := range list {
+		if u == user {
+			return true
+		}
+	}
+	return false
 }

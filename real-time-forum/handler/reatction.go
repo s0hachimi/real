@@ -19,17 +19,19 @@ type reac struct {
 
 func Reaction(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "POST" {
-		fmt.Println("post")
 		var reactione reac
 		err := json.NewDecoder(r.Body).Decode(&reactione)
 		if err != nil {
 			fmt.Println("error : ", err)
 			return
 		}
+
+		fmt.Println("reac", reactione)
+
 		_, err = servisse.IsHaveToken(r)
 		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte(`{"error": "Unauthorized", "status":false, "tocken":false}`))
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte(`{"error": "BadRequest", "status":false, "tocken":false}`))
 			return
 		}
 		token, _ := r.Cookie("SessionToken")
@@ -43,6 +45,8 @@ func Reaction(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			err = db.InsertReaction(reactione.User_id, content_id, reactione.Content_type, reactione.Reactione_type)
 			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				w.Write([]byte(`{"error": "BadRequest", "status":false, "tocken":false}`))
 				fmt.Println("err select 1")
 				return
 			}

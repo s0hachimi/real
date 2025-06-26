@@ -25,7 +25,7 @@ func Insertuser(first_name string, last_name string, email string, gender string
 
 func InsertPostes(user_id int, title string, content string, catygory []string) error {
 	created_at := time.Now().Format("2006-01-02 15:04:05")
-	fmt.Println(created_at)
+
 	info, err := DB.Prepare("INSERT INTO postes (user_id,title,content,created_at,categories) VALUES (?,?,?,?,?)")
 	if err != nil {
 		fmt.Println("==> E : ", err)
@@ -35,6 +35,7 @@ func InsertPostes(user_id int, title string, content string, catygory []string) 
 	if err != nil {
 		return err
 	}
+
 	var post_id string
 	err = DB.QueryRow(`SELECT id FROM postes WHERE user_id = ? AND title = ? AND content = ? AND created_at = ?`, user_id, title, content, created_at).Scan(&post_id)
 	if err != nil {
@@ -44,6 +45,7 @@ func InsertPostes(user_id int, title string, content string, catygory []string) 
 	if err != nil {
 		return err
 	}
+	
 	InsertCategory(id, catygory)
 	return nil
 }
@@ -64,6 +66,19 @@ func InsertCategory(post_id int, catygory []string) error {
 }
 
 func InsertReaction(user_id int, content_id int, content_type string, reaction_type string) error {
+
+	if content_type == "post" {
+		err := SelectPostid(content_id)
+		if err != nil {
+			return err
+		}
+	} else if content_type == "comment" {
+		err := SelectCommentid(content_id)
+		if err != nil {
+			return err
+		}
+	}
+
 	info, err := DB.Prepare("INSERT INTO reactions (user_id,content_type,content_id,reaction_type) VALUES (?,?,?,?)")
 	if err != nil {
 		return err
